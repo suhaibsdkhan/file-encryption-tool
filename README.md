@@ -1,152 +1,156 @@
-# File Encryption Tool
 
-This repository contains a simple Python-based file encryption and decryption tool to secure your files using AES (Advanced Encryption Standard). It supports both encrypting and decrypting files via a command-line interface.
+# Fancy File Encryption Tool
 
+A more advanced file encryption/decryption utility that supports **AES** (EAX or GCM) with **scrypt**-based key derivation. It provides both a **GUI** (built with Tkinter) and a **CLI** interface for convenience.
 
-## Features (What It Offers)
+## Features
 
-- *AES Encryption/Decryption*: Uses a secure, industry-standard algorithm.
-- *Command-Line Interface*: Easily encrypt or decrypt files from the terminal.
-- *Password Protection*: Set your own password for encryption and decryption.
-- *Cross-Platform*: Works on Windows, maCOS, and Linux (requires Python 3.x).
+- **AES-256** encryption (via EAX or GCM mode).
+- **Secure password-based key derivation** using **scrypt**.
+- **Random salt and nonce** for every encryption operation.
+- **GUI** for easy operation (encrypt/decrypt).
+- **CLI** with chunk-based encryption/decryption and a **progress bar** (using `tqdm`) for large files.
+- **Logging** of encryption/decryption steps and improved error handling.
 
+## Requirements
 
-## Getting Started
+- Python 3.6+
+- [pycryptodome](https://pypi.org/project/pycryptodome/) for AES and scrypt
+- [tqdm](https://pypi.org/project/tqdm/) for the CLI progress bar
+- Tkinter (usually included with most Python installations)
 
+## Installation
 
-### Prerequisites
+### General Steps
 
--**Python 3.6+** must be installed on your machine.
-- (Optional) Create a virtual environment for a clean setup:
+1. **Clone or Download this Repository.**
+   ```bash
+   git clone https://github.com/yourusername/file-encryption-tool.git
+   cd file-encryption-tool
+   ```
 
-`{bash
-python -m venv venv
+2. **Install Dependencies** (in a virtual environment is highly recommended).
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install pycryptodome tqdm
+   ```
 
-source venv/bin/activate # On Linux/Mac
-venv\\Scripts\\activate     # On Windows
-`}
+### macOS Ventura and PEP 668
 
-### Installation
+On macOS Ventura (and potentially newer versions), **system Python** is marked as “externally managed” per [PEP 668](https://peps.python.org/pep-0668/). If you try to install packages system-wide using `pip3`, you may get an **`externally-managed-environment`** error.
 
-1. **Clone the repository**:
-  `{bash
-git clone https://github.com/suhaibsdkhan/file-encryption-tool.git
-``
-2. **Navigate into the folder**:
-```bash
-cd file-encryption-tool
-```
-if you are not already in the project folder, this will create one.
+To avoid this issue, you have two main approaches:
 
-3. **Install required dependencies**:
-```{bash
-pip install -r requirements.txt```
+1. **Use a Virtual Environment** (preferred):  
+   ```bash
+   # Create and activate a virtual environment
+   python3 -m venv venv
+   source venv/bin/activate
 
+   # Install packages into the venv
+   pip install pycryptodome tqdm
+
+   # Run your script in the venv
+   python encryption_tool.py ...
+   ```
+   When you're finished, type `deactivate` to exit the virtual environment.
+
+2. **Install a Separate Python via Homebrew**:  
+   ```bash
+   brew install python
+   # This will install a separate python (e.g., /opt/homebrew/bin/python3 or /usr/local/bin/python3)
+
+   /opt/homebrew/bin/python3 -m venv venv
+   source venv/bin/activate
+   pip install pycryptodome tqdm
+   ```
+   This ensures you don’t conflict with Apple’s system-managed Python.
+
+> **Note:** You can also force `pip` to install in the system environment with `--break-system-packages`, but **this is strongly discouraged** as it may cause conflicts or break the system-managed Python.
 
 ## Usage
 
-Below are examples of how to encrypt or decrypt files using the command-line interface.
+Once dependencies are installed (in your virtual environment or separate Python), you can run the tool in **GUI mode** or **CLI mode**:
 
-### Run the Tool
+### 1. GUI Mode
 
-1. **Encrypt a file**:
-```{bash
-python file_encrypt.py --encrypt --file /path/to/plain_file.txt
-```
-You will be prompted to enter a **password**. This password will be needed to decrypt the file.
+Open the Tkinter GUI with:
 
-2. **Decrypt a file**:
-```{bash
-python file_encrypt.py --decrypt --file /path/to/encrypted_file.enc
-```
-Enter the **same password** used during encryption.  
-When the password is incorrect, decryption will fail.
-
-
-### Command-line Options
-
-```{raw
-usage: file_encrypt.py [-h] [--encrypt] [--decrypt] [--file FILE]
-
-optional arguments:
-  -h, --help       show this help message and exit
-  --encrypt       Encrypt the specified file
-  --decrypt        Decrypt the specified file
-  --file FILE         Path to the file to encrypt or decrypt
-
-
+```bash
+python encryption_tool.py gui
 ```
 
-### Examples
+A window will appear where you can:
+- **Browse** for a file.
+- Enter a **Password**.
+- Select **AES Mode** (`EAX` or `GCM`).
+- Click **Encrypt** or **Decrypt**.
 
-o **Encrypting a file
-```{bash
-python file_encrypt.py --encrypt --file secret_data.txt
-# Creates an encrypted file named secret_data.tx.enc
+### 2. CLI Mode
+
+You can also use the command-line interface for more advanced use cases.
+
+```bash
+python encryption_tool.py [command] [options]
 ```
 
-** Decrypting a file ** 
- ```bash
-python file_encrypt.py --decrypt --file secret_data.tx.enc
-# Decrypted file named secret_data.tx will be generated
-```
+**Commands**:
 
+1. **encrypt**  
+   Encrypt a file from the command line.  
+   **Example**:  
+   ```bash
+   python encryption_tool.py encrypt -f secret.txt -p "MyStrongPassword" --mode GCM
+   ```
+   - **Options**:
+     - `-o/--output` to specify the output file name (defaults to `secret.txt.enc`).
+     - `-m/--mode` to choose AES mode (`EAX` or `GCM`).
 
-### Project Structure
+2. **decrypt**  
+   Decrypt a file from the command line.  
+   **Example**:  
+   ```bash
+   python encryption_tool.py decrypt -f secret.txt.enc -p "MyStrongPassword"
+   ```
+   - **Options**:
+     - `-o/--output` to specify the output file name (defaults to removing `.enc` extension or adding `.dec`).
+     - `-m/--mode` to choose AES mode (`EAX` or `GCM`).
 
-```file`
-file-encryption-tool
-\|
-||-- file_encrypt.py           # Main script for encryption/decryption
-||- requirements.txt           # Python libraries needed||- LICENSE                             # License (if provided)||- README.md                              # Project documentation (this file)```
+## Examples
 
+1. **Encrypt a PDF (CLI)**:
+   ```bash
+   python encryption_tool.py encrypt -f report.pdf -p "MyPassword123" -m GCM
+   # Outputs: report.pdf.enc
+   ```
 
-### How It Works
+2. **Decrypt a PDF (CLI)**:
+   ```bash
+   python encryption_tool.py decrypt -f report.pdf.enc -p "MyPassword123" -m GCM
+   # Outputs: report.pdf
+   ```
 
-1. ***Password Input***
-###    The script prompts the user for a password. Make sure to remember this password as it's required for decryption.
+3. **Launch the GUI**:
+   ```bash
+   python encryption_tool.py gui
+   ```
 
-2. **Key Derivation**
+## How It Works
 
-###    A secure key is derived from the supplied password using a key derivation function like PBKDF2. This provides additional security against brute-force attacks.
+1. **Key Generation**  
+   A secure 256-bit key is derived from your provided password using **scrypt** with a random salt.
 
-3. **AES Encryption**
-###    The tool uses AES encryption in CBC (Cipher Block Chaining) mode, requiring an initialization vector (IV) to ensure unique encryptions even when files are identical.
+2. **AES Encryption (EAX/GCM)**  
+   The tool uses either EAX or GCM mode for authenticated encryption. A **tag** is generated to verify integrity during decryption.
 
-4. ***File Output**
+3. **Chunk-Based Processing (CLI)**  
+   Large files are processed in 64KB chunks to avoid high memory usage, with `tqdm` providing real-time progress feedback.
 
-###    - **Encryption**: Reads the source file in chunks, encrypts each chunk, and writes to a new file with the .enc extension.
-###    - **Decryption**: Reads the .enc file, decrypts it, and outputs the original file without the .enc extension.
+## Contributing
 
-### Security Considerations
+Feel free to open pull requests or issues to add features (e.g., more ciphers, refined GUI, etc.).
 
-###  - **Password Strength**: Choose a strong, unique password to protect your files.
-###  - **Sharing the Password**: If you share your encrypted file with others, ensure you share the password via a secure channel.
-### - **File Overwriting**: Decryption may overwrite an existing file with the same name. Back up important files before testing.
+## License
 
-
-### Contributing
-
-1. Fork this repository.
-2. Create a new branch (`git checkout -b feature/new-featuer`).
-/3. Commit your changes (`git commit -m "Add new featuer"`).
-4. Push to your fork (`git push origin feature/new-feature`).
-/5. Create a new Pull Request.
-
-We welcome any contributions, including bug reports, bu fixes, documentation, and feature improvements.
-
-
-### License
-
-This project is licensed under the [MIT License](LICENSE). Feel free to use, modify, and distribute this software according to its terms.
-
-
-### Contact
-
-- **Author*: [Suhaib K.](https://github.com/suhaibsdkthan)
-- **Project Link**: [file-encryption-tool](https://github.com/suhaibsdkhan/file-encryption-tool)
-
-If you have any issues or suggestions, please open an [issue](https://github.com/suhaibsdkhan/file-encryption-tool/issues) or submit a Pull Request.
-
-
-**Happy Encrypting!**
+Distributed under the **MIT License**. See `LICENSE` for more information.
