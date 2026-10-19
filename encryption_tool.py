@@ -1,13 +1,7 @@
 #!/usr/bin/env python3
 """
-Fancy File Encryption Tool
-
-Features:
-- AES encryption (EAX or GCM) with Scrypt-based key derivation
-- GUI mode for everyday users
-- CLI mode for power users, including chunk-based encryption and progress bar
-- Secure random salt and nonce generation
-- Progress bar for large file handling (CLI only)
+Password-based file encryption: AES-256 (EAX or GCM) with an scrypt-derived key.
+Run with `gui` for a Tkinter window, or `encrypt` / `decrypt` from the command line.
 
 Requires:
 - pycryptodome (for AES, scrypt)
@@ -17,7 +11,7 @@ Requires:
 
 import os
 import argparse
-import base64
+import getpass
 import logging
 from tkinter import filedialog, messagebox
 import tkinter as tk
@@ -45,97 +39,40 @@ def generate_key(password: bytes, salt: bytes) -> bytes:
     """
     return scrypt(password, salt, key_len=32, N=2**14, r=8, p=1)
 
-def encrypt_data(key: bytes, plaintext: bytes, mode: str) -> tuple:
-    """
-    Encrypt data using AES in the specified mode (EAX or GCM).
-    Returns salt, nonce, tag, ciphertext.
-    """
-    if mode.upper() == "GCM":
-        cipher = AES.new(key, AES.MODE_GCM)
-    else:
-        # Default to EAX
-        cipher = AES.new(key, AES.MODE_EAX)
-
-    ciphertext, tag = cipher.encrypt_and_digest(plaintext)
-    return cipher.nonce, tag, ciphertext
-
-def decrypt_data(key: bytes, nonce: bytes, tag: bytes, ciphertext: bytes, mode: str) -> bytes:
-    """
-    Decrypt data using AES in the specified mode (EAX or GCM).
-    Returns plaintext.
-    """
-    if mode.upper() == "GCM":
-        cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
-    else:
-        # Default to EAX
-        cipher = AES.new(key, AES.MODE_EAX, nonce=nonce)
-
-    plaintext = cipher.decrypt_and_verify(ciphertext, tag)
-    return plaintext
+def decrypted_name(path: str) -> str:
+    # report.pdf.enc -> report.pdf, anything else gets .dec appended
+    return path[:-4] if path.endswith(".enc") else path + ".dec"
 
 # ----------------------------
 # GUI-Specific Functions
-# (Encrypt/Decrypt in one go)
 # ----------------------------
 
+# The GUI used to write salt + nonce + tag + ciphertext while the CLI wrote
+# salt + nonce + ciphertext + tag, so files from one couldn't be opened by the
+# other. Both now go through the same chunked functions below.
+
 def encrypt_file_gui(file_path: str, password: str, mode: str):
-    """
-    Encrypt file in one go (for GUI usage).
-    Writes salt + nonce + tag + ciphertext to .enc file.
-    """
     try:
-        salt = get_random_bytes(16)
-        key = generate_key(password.encode(), salt)
-
-        # Read the entire file at once
-        with open(file_path, 'rb') as f:
-            plaintext = f.read()
-
-        nonce, tag, ciphertext = encrypt_data(key, plaintext, mode)
         output_file = file_path + ".enc"
-
-        with open(output_file, 'wb') as f:
-            # Save salt + nonce + tag + ciphertext
-            f.write(salt + nonce + tag + ciphertext)
-
+        encrypt_file_cli(file_path, output_file, password, mode)
         messagebox.showinfo("Success", f"File encrypted and saved as {output_file}")
     except Exception as e:
-        logging.exception("Encryption error")
         messagebox.showerror("Error", f"An error occurred: {e}")
 
 def decrypt_file_gui(file_path: str, password: str, mode: str):
-    """
-    Decrypt file in one go (for GUI usage).
-    Expects salt(16) + nonce(16) + tag(16) + ciphertext.
-    Removes .enc extension from output file.
-    """
     try:
-        with open(file_path, 'rb') as f:
-            salt = f.read(16)
-            nonce = f.read(16)
-            tag = f.read(16)
-            ciphertext = f.read()
-
-        key = generate_key(password.encode(), salt)
-        plaintext = decrypt_data(key, nonce, tag, ciphertext, mode)
-
-        # Remove .enc extension
-        if file_path.endswith(".enc"):
-            output_file = file_path[:-4]
-        else:
-            output_file = file_path + ".dec"
-
-        with open(output_file, 'wb') as f:
-            f.write(plaintext)
-
+        output_file = decrypted_name(file_path)
+        decrypt_file_cli(file_path, output_file, password, mode)
         messagebox.showinfo("Success", f"File decrypted and saved as {output_file}")
+    except ValueError:
+        messagebox.showerror("Error", "Wrong password or mode, or the file has been modified.")
     except Exception as e:
-        logging.exception("Decryption error")
         messagebox.showerror("Error", f"An error occurred: {e}")
 
 # ----------------------------
 # CLI-Specific Functions
 # (Chunk-based Encryption/Decryption)
+# File layout: salt(16) + nonce(16) + ciphertext + tag(16)
 # ----------------------------
 
 def encrypt_file_cli(input_path: str, output_path: str, password: str, mode: str):
@@ -185,8 +122,10 @@ def decrypt_file_cli(input_path: str, output_path: str, password: str, mode: str
     """
     Decrypt a file in chunks for CLI usage to handle large files gracefully.
     """
+    wrote_output = False
     try:
         with open(input_path, 'rb') as fin, open(output_path, 'wb') as fout:
+            wrote_output = True
             salt = fin.read(16)
             nonce = fin.read(16)
             key = generate_key(password.encode(), salt)
@@ -216,7 +155,11 @@ def decrypt_file_cli(input_path: str, output_path: str, password: str, mode: str
 
         logging.info("Decryption completed: %s", output_path)
     except Exception as e:
-        logging.exception("Decryption error (CLI)")
+        # Chunks are written before the tag can be checked, so a wrong password
+        # or tampered file would otherwise leave unverified plaintext on disk.
+        if wrote_output:
+            os.remove(output_path)
+        logging.error("Decryption failed (CLI): %s", e)
         raise
 
 # ----------------------------
@@ -243,7 +186,7 @@ def perform_action(action):
 
 def launch_gui():
     root = tk.Tk()
-    root.title("Fancy File Encryption Tool")
+    root.title("File Encryption Tool")
 
     global file_path_var, password_var, mode_var
     file_path_var = tk.StringVar()
@@ -276,7 +219,7 @@ def launch_gui():
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Fancy File Encryption Tool: AES-based encryption (EAX/GCM), with GUI or CLI usage."
+        description="Encrypt or decrypt a file with a password (AES-256, EAX or GCM)."
     )
     subparsers = parser.add_subparsers(dest="command")
 
@@ -284,20 +227,25 @@ def main():
     encrypt_parser = subparsers.add_parser("encrypt", help="Encrypt a file (CLI)")
     encrypt_parser.add_argument("-f", "--file", required=True, help="Path to the input file")
     encrypt_parser.add_argument("-o", "--output", required=False, help="Output file path (default: input_file.enc)")
-    encrypt_parser.add_argument("-p", "--password", required=True, help="Password for encryption")
+    encrypt_parser.add_argument("-p", "--password", help="Password (prompted for if omitted, which keeps it out of shell history)")
     encrypt_parser.add_argument("-m", "--mode", choices=["EAX", "GCM"], default="EAX", help="AES mode (default: EAX)")
 
     # Decrypt subcommand
     decrypt_parser = subparsers.add_parser("decrypt", help="Decrypt a file (CLI)")
     decrypt_parser.add_argument("-f", "--file", required=True, help="Path to the input encrypted file")
     decrypt_parser.add_argument("-o", "--output", required=False, help="Output file path (default: input_file.dec or original filename if .enc)")
-    decrypt_parser.add_argument("-p", "--password", required=True, help="Password for decryption")
+    decrypt_parser.add_argument("-p", "--password", help="Password (prompted for if omitted)")
     decrypt_parser.add_argument("-m", "--mode", choices=["EAX", "GCM"], default="EAX", help="AES mode (default: EAX)")
 
     # GUI subcommand
     gui_parser = subparsers.add_parser("gui", help="Launch the Tkinter GUI")
 
     args = parser.parse_args()
+
+    if args.command in ("encrypt", "decrypt") and not args.password:
+        args.password = getpass.getpass("Password: ")
+        if args.command == "encrypt" and getpass.getpass("Confirm password: ") != args.password:
+            parser.error("passwords do not match")
 
     if args.command == "encrypt":
         # CLI encrypt
@@ -308,14 +256,7 @@ def main():
     elif args.command == "decrypt":
         # CLI decrypt
         in_file = args.file
-        if args.output:
-            out_file = args.output
-        else:
-            # If file ends with .enc, remove extension, otherwise append .dec
-            if in_file.endswith(".enc"):
-                out_file = in_file[:-4]
-            else:
-                out_file = in_file + ".dec"
+        out_file = args.output or decrypted_name(in_file)
         decrypt_file_cli(in_file, out_file, args.password, args.mode)
         print(f"Decrypted file saved to: {out_file}")
     elif args.command == "gui":
